@@ -1,7 +1,8 @@
 
 "use client";
+import { useEffect, useState } from "react";
 
-import { useState } from "react";
+import { createClient } from "../lib/supabase/client";
 
 type Task = {
   id: number;
@@ -10,13 +11,36 @@ type Task = {
 };
 
 export default function Home() {
-  const [tasks, setTasks] = useState<Task[]>([
-    { id: 1, title: "Learn Next.js", completed: true },
-    { id: 2, title: "Understand TypeScript", completed: false },
-    { id: 3, title: "Build TaskFlow", completed: false },
-  ]);
+  const supabase = createClient();
 
+  const [tasks, setTasks] = useState<Task[]>([]);
+const [isLoading, setIsLoading] = useState(true);
+const [loadError, setLoadError] = useState("");
+  
+useEffect(() => {
+  async function fetchTasks() {
+    setIsLoading(true);
+    setLoadError("");
+
+    const { data, error } = await supabase
+      .from("tasks")
+      .select("*")
+      .order("created_at", { ascending: false });
+
+    if (error) {
+      setLoadError(error.message);
+      setIsLoading(false);
+      return;
+    }
+
+    setTasks(data as Task[]);
+    setIsLoading(false);
+  }
+
+  fetchTasks();
+}, []);
   const [newTask, setNewTask] = useState("");
+  const [isSaving, setIsSaving] = useState(false);
 
   const completedTasks = tasks.filter(
     (task) => task.completed
@@ -24,21 +48,36 @@ export default function Home() {
 
   const remainingTasks = tasks.length - completedTasks;
 
-  function addTask() {
+  // Save a new task in Supabase
+  async function addTask() {
     const title = newTask.trim();
 
-    if (!title) return;
+    if (!title || isSaving) return;
 
-    const task: Task = {
-      id: Date.now(),
-      title,
-      completed: false,
-    };
+    setIsSaving(true);
 
-    setTasks((previousTasks) => [...previousTasks, task]);
+    const { data, error } = await supabase
+      .from("tasks")
+      .insert({ title })
+      .select()
+      .single();
+
+    if (error) {
+      alert("Could not save task: " + error.message);
+      setIsSaving(false);
+      return;
+    }
+
+    setTasks((previousTasks) => [
+      ...previousTasks,
+      data as Task,
+    ]);
+
     setNewTask("");
+    setIsSaving(false);
   }
 
+  // Toggle task completion (frontend only for now)
   function toggleTask(id: number) {
     setTasks((previousTasks) =>
       previousTasks.map((task) =>
@@ -49,6 +88,7 @@ export default function Home() {
     );
   }
 
+  // Delete task (frontend only for now)
   function deleteTask(id: number) {
     setTasks((previousTasks) =>
       previousTasks.filter((task) => task.id !== id)
@@ -58,20 +98,29 @@ export default function Home() {
   return (
     <main className="min-h-screen bg-slate-950 p-6 text-white sm:p-10">
       <div className="mx-auto max-w-5xl">
+
+        {/* Header */}
         <header className="mb-10">
           <p className="text-sm font-medium tracking-widest text-blue-400">
             YOUR WORKSPACE
           </p>
-          <h1 className="mt-2 text-4xl font-bold">TaskFlow</h1>
+
+          <h1 className="mt-2 text-4xl font-bold">
+            TaskFlow
+          </h1>
+
           <p className="mt-2 text-slate-400">
             Manage your work. Stay productive.
           </p>
         </header>
 
+        {/* Dashboard statistics */}
         <section className="grid gap-4 sm:grid-cols-3">
           <div className="rounded-xl bg-slate-900 p-6">
             <p className="text-slate-400">Total Tasks</p>
-            <h2 className="mt-2 text-3xl font-bold">{tasks.length}</h2>
+            <h2 className="mt-2 text-3xl font-bold">
+              {tasks.length}
+            </h2>
           </div>
 
           <div className="rounded-xl bg-slate-900 p-6">
@@ -89,13 +138,18 @@ export default function Home() {
           </div>
         </section>
 
+        {/* Add task */}
         <section className="mt-8 rounded-xl bg-slate-900 p-6">
-          <h2 className="mb-4 text-xl font-semibold">Add a New Task</h2>
+          <h2 className="mb-4 text-xl font-semibold">
+            Add a New Task
+          </h2>
 
           <div className="flex flex-col gap-3 sm:flex-row">
             <input
               value={newTask}
-              onChange={(event) => setNewTask(event.target.value)}
+              onChange={(event) =>
+                setNewTask(event.target.value)
+              }
               onKeyDown={(event) => {
                 if (event.key === "Enter") addTask();
               }}
@@ -105,18 +159,34 @@ export default function Home() {
 
             <button
               onClick={addTask}
-              className="rounded-lg bg-blue-600 px-6 py-3 font-medium hover:bg-blue-500"
+              disabled={isSaving || !newTask.trim()}
+              className="rounded-lg bg-blue-600 px-6 py-3 font-medium hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-50"
             >
-              Add Task
+              {isSaving ? "Saving..." : "Add Task"}
             </button>
           </div>
         </section>
 
+        {/* Task list */}
         <section className="mt-8 rounded-xl bg-slate-900 p-6">
-          <h2 className="mb-5 text-xl font-semibold">My Tasks</h2>
+          <h2 className="mb-5 text-xl font-semibold">
+            My Tasks
+          </h2>
 
           <div className="space-y-3">
-            {tasks.map((task) => (
+            {isLoading && (
+              <p className="py-6 text-center text-slate-400">
+                Loading your tasks...
+              </p>
+            )}
+
+            {loadError && (
+              <p className="py-6 text-center text-red-400">
+                Failed to load tasks: {loadError}
+              </p>
+            )}
+
+            {!isLoading && !loadError && tasks.map((task) => (
               <div
                 key={task.id}
                 className="flex flex-wrap items-center justify-between gap-3 rounded-lg bg-slate-800 p-4"
@@ -149,13 +219,14 @@ export default function Home() {
               </div>
             ))}
 
-            {tasks.length === 0 && (
+            {!isLoading && !loadError && tasks.length === 0 && (
               <p className="py-6 text-center text-slate-400">
                 No tasks yet. Add your first task!
               </p>
             )}
           </div>
         </section>
+
       </div>
     </main>
   );
