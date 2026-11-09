@@ -207,7 +207,11 @@ async function deleteTask(id: number) {
           </h2>
 
           <div className="space-y-3">
-            {tasks.map((task) => (
+            {isLoading ? (
+              <p className="py-6 text-center text-slate-400">
+                Loading tasks...
+              </p>
+            ) : tasks.map((task) => (
               <div
                 key={task.id}
                 className="flex flex-wrap items-center justify-between gap-3 rounded-lg bg-slate-800 p-4"
@@ -240,7 +244,7 @@ async function deleteTask(id: number) {
               </div>
             ))}
 
-            {tasks.length === 0 && (
+            {!isLoading && tasks.length === 0 && (
               <p className="py-6 text-center text-slate-400">
                 No tasks yet. Add your first task!
               </p>
