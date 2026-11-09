@@ -77,23 +77,56 @@ useEffect(() => {
     setIsSaving(false);
   }
 
-  // Toggle task completion (frontend only for now)
-  function toggleTask(id: number) {
-    setTasks((previousTasks) =>
-      previousTasks.map((task) =>
-        task.id === id
-          ? { ...task, completed: !task.completed }
-          : task
-      )
-    );
+  // Toggle task completion status in Supabase
+ 
+async function toggleTask(id: number) {
+  // Find the task we want to update
+  const currentTask = tasks.find((task) => task.id === id);
+
+  if (!currentTask) return;
+
+  // Update the database
+  const { data, error } = await supabase
+    .from("tasks")
+    .update({ completed: !currentTask.completed })
+    .eq("id", id)
+    .select()
+    .single();
+
+  // Handle database errors
+  if (error) {
+    alert("Could not update task: " + error.message);
+    return;
   }
 
-  // Delete task (frontend only for now)
-  function deleteTask(id: number) {
-    setTasks((previousTasks) =>
-      previousTasks.filter((task) => task.id !== id)
-    );
+  // Update the frontend after database success
+  setTasks((previousTasks) =>
+    previousTasks.map((task) =>
+      task.id === id ? (data as Task) : task
+    )
+  );
+}
+
+// Delete a task from Supabase 
+async function deleteTask(id: number) {
+  // Delete the task from Supabase
+  const { error } = await supabase
+    .from("tasks")
+    .delete()
+    .eq("id", id);
+
+  // Handle database errors
+  if (error) {
+    alert("Could not delete task: " + error.message);
+    return;
   }
+
+  // Update the frontend after successful deletion
+  setTasks((previousTasks) =>
+    previousTasks.filter((task) => task.id !== id)
+  );
+}
+
 
   return (
     <main className="min-h-screen bg-slate-950 p-6 text-white sm:p-10">
@@ -174,19 +207,7 @@ useEffect(() => {
           </h2>
 
           <div className="space-y-3">
-            {isLoading && (
-              <p className="py-6 text-center text-slate-400">
-                Loading your tasks...
-              </p>
-            )}
-
-            {loadError && (
-              <p className="py-6 text-center text-red-400">
-                Failed to load tasks: {loadError}
-              </p>
-            )}
-
-            {!isLoading && !loadError && tasks.map((task) => (
+            {tasks.map((task) => (
               <div
                 key={task.id}
                 className="flex flex-wrap items-center justify-between gap-3 rounded-lg bg-slate-800 p-4"
@@ -219,7 +240,7 @@ useEffect(() => {
               </div>
             ))}
 
-            {!isLoading && !loadError && tasks.length === 0 && (
+            {tasks.length === 0 && (
               <p className="py-6 text-center text-slate-400">
                 No tasks yet. Add your first task!
               </p>
