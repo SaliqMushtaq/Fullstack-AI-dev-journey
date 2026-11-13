@@ -2,6 +2,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { createClient } from "../lib/supabase/client";
 
 type Task = {
@@ -14,12 +15,14 @@ type Task = {
 
 export default function Home() {
   const supabase = createClient();
+  const router = useRouter();
 
   const [tasks, setTasks] = useState<Task[]>([]);
   const [userId, setUserId] = useState<string | null>(null);
 
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+  const [isSigningOut, setIsSigningOut] = useState(false);
   const [loadError, setLoadError] = useState("");
 
   const [newTask, setNewTask] = useState("");
@@ -36,8 +39,8 @@ export default function Home() {
       } = await supabase.auth.getUser();
 
       if (userError || !user) {
-        setLoadError("Please log in to view your tasks.");
-        setIsLoading(false);
+        router.replace("/login");
+        router.refresh();
         return;
       }
 
@@ -60,7 +63,28 @@ export default function Home() {
     }
 
     fetchTasks();
-  }, [supabase]);
+  }, [supabase, router]);
+
+  // LOGOUT: End the user's Supabase session
+  async function handleLogout() {
+    if (isSigningOut) return;
+
+    setIsSigningOut(true);
+    setLoadError("");
+
+    const { error } = await supabase.auth.signOut();
+
+    if (error) {
+      setLoadError("Could not log out: " + error.message);
+      setIsSigningOut(false);
+      return;
+    }
+
+    setUserId(null);
+    setTasks([]);
+    router.replace("/login");
+    router.refresh();
+  }
 
   // CREATE: Add a task with the logged-in user's ID
   async function addTask() {
@@ -163,18 +187,28 @@ export default function Home() {
       <div className="mx-auto max-w-5xl">
 
         {/* Header */}
-        <header className="mb-10">
-          <p className="text-sm font-medium tracking-widest text-blue-400">
-            YOUR WORKSPACE
-          </p>
+        <header className="mb-10 flex flex-wrap items-center justify-between gap-5">
+          <div>
+            <p className="text-sm font-medium tracking-widest text-blue-400">
+              YOUR WORKSPACE
+            </p>
 
-          <h1 className="mt-2 text-4xl font-bold">
-            TaskFlow
-          </h1>
+            <h1 className="mt-2 text-4xl font-bold">
+              TaskFlow
+            </h1>
 
-          <p className="mt-2 text-slate-400">
-            Manage your work. Stay productive.
-          </p>
+            <p className="mt-2 text-slate-400">
+              Manage your work. Stay productive.
+            </p>
+          </div>
+
+          <button
+            onClick={handleLogout}
+            disabled={isSigningOut}
+            className="rounded-lg border border-red-500/40 bg-red-600/10 px-5 py-3 font-medium text-red-400 transition hover:bg-red-600 hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {isSigningOut ? "Signing Out..." : "Logout"}
+          </button>
         </header>
 
         {/* Dashboard statistics */}
