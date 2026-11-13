@@ -23,41 +23,49 @@ export default function LoginPage() {
     setMessage("");
     setError("");
 
-    if (isLogin) {
-      const { error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
+    try {
+      if (isLogin) {
+        const { error } = await supabase.auth.signInWithPassword({
+          email,
+          password,
+        });
 
-      if (error) {
-        setError(error.message);
+        if (error) {
+          setError(error.message);
+        } else {
+          router.push("/");
+          router.refresh();
+        }
       } else {
-        router.push("/");
-        router.refresh();
-      }
-    } else {
-      const { data, error } = await supabase.auth.signUp({
-        email,
-        password,
-      });
+        const { data, error } = await supabase.auth.signUp({
+          email,
+          password,
+          options: {
+            emailRedirectTo: `${window.location.origin}/auth/callback`,
+          },
+        });
 
-      if (error) {
-        setError(error.message);
-      } else if (!data.session) {
-        setMessage("Registration successful! Check your email to confirm your account, then log in.");
-      } else {
-        router.push("/");
-        router.refresh();
+        if (error) {
+          setError(error.message);
+        } else if (!data.session) {
+          setMessage(
+            "Registration successful! Check your email and click the confirmation link. You will be redirected to TaskFlow."
+          );
+        } else {
+          router.push("/");
+          router.refresh();
+        }
       }
+    } catch {
+      setError("Something went wrong. Please try again.");
+    } finally {
+      setLoading(false);
     }
-
-    setLoading(false);
   }
 
   return (
     <main className="flex min-h-screen items-center justify-center bg-slate-950 p-6 text-white">
       <div className="w-full max-w-md rounded-2xl bg-slate-900 p-8 shadow-xl">
-
         <p className="text-sm font-semibold tracking-widest text-blue-400">
           TASKFLOW
         </p>
@@ -73,7 +81,6 @@ export default function LoginPage() {
         </p>
 
         <form onSubmit={handleAuth} className="mt-8 space-y-5">
-
           <div>
             <label className="mb-2 block text-sm text-slate-300">
               Email Address
@@ -143,7 +150,6 @@ export default function LoginPage() {
             {isLogin ? "Sign Up" : "Sign In"}
           </button>
         </p>
-
       </div>
     </main>
   );
